@@ -6,9 +6,10 @@ import { recentActivities, environmentalAlerts } from "@/data/sampleData";
 
 interface RightSidebarProps {
   selectedVillage?: any;
+  variant?: 'sidebar' | 'flex';
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
+const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage, variant = 'sidebar' }) => {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'upload': return <Upload className="w-4 h-4" />;
@@ -26,10 +27,18 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
     }
   };
 
+  const isFlex = variant === 'flex';
+
   return (
-    <div className="w-80 space-y-6 p-6 bg-background border-l">
+    <div
+      className={
+        isFlex
+          ? "w-full p-6 bg-background flex flex-wrap gap-6"
+          : "w-80 space-y-6 p-6 bg-background border-l"
+      }
+    >
       {/* Quick Actions */}
-      <Card className="shadow-government">
+      <Card className={isFlex ? "shadow-government flex-1 min-w-[260px]" : "shadow-government"}>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
             <BarChart3 className="w-5 h-5 mr-2 text-primary" />
@@ -53,7 +62,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
       </Card>
 
       {/* Recent Activities */}
-      <Card className="shadow-government">
+      <Card className={isFlex ? "shadow-government flex-1 min-w-[260px]" : "shadow-government"}>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
             <Clock className="w-5 h-5 mr-2 text-primary" />
@@ -78,7 +87,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
       </Card>
 
       {/* Environmental Alerts */}
-      <Card className="shadow-government">
+      <Card className={isFlex ? "shadow-government flex-1 min-w-[260px]" : "shadow-government"}>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
             <AlertCircle className="w-5 h-5 mr-2 text-destructive" />
@@ -104,7 +113,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
       </Card>
 
       {/* Village Info */}
-      <Card className="shadow-government">
+      <Card className={isFlex ? "shadow-government flex-1 min-w-[260px]" : "shadow-government"}>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
             <MapPin className="w-5 h-5 mr-2 text-primary" />

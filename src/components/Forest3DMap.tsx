@@ -307,7 +307,13 @@ const Forest3DMap: React.FC = () => {
           filled: true,
           extruded: false,
           wireframe: false,
-          getFillColor: feature.properties.color || [34, 139, 34, 200],
+          getFillColor: (f) => {
+            const c = (f as any)?.properties?.color as number[] | undefined;
+            if (Array.isArray(c) && c.length >= 3) {
+              return [c[0], c[1], c[2], 200];
+            }
+            return [34, 139, 34, 200];
+          },
           getLineColor: [255, 255, 255, 200],
           getLineWidth: 1,
           opacity: 0.7,
@@ -419,19 +425,6 @@ const Forest3DMap: React.FC = () => {
           </div>
         </Map>
       </DeckGL>
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        background: 'rgba(0,0,0,0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '4px',
-        zIndex: 1000
-      }}>
-        <h3>3D Forest Coverage Map</h3>
-        <div>Zoom and rotate to explore forest coverage</div>
-      </div>
     </div>
   );
 };

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import DashboardHeader from './DashboardHeader';
 import EnhancedStatsCards from './EnhancedStatsCards';
-import ForestMapContainer from './ForestMapContainer';
 import Forest3DMap from './Forest3DMap';
 import RightSidebar from './RightSidebar';
 import DetailedAnalytics from './DetailedAnalytics';
@@ -13,9 +11,6 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <DashboardHeader />
-      
       {/* Main Content */}
       <div className="p-6">
         <Tabs defaultValue="overview" className="w-full">
@@ -28,15 +23,10 @@ const Dashboard: React.FC = () => {
           <TabsContent value="overview" className="space-y-6">
             {/* Enhanced Statistics Cards */}
             <EnhancedStatsCards />
-            
-            {/* Quick Map Overview */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <ForestMapContainer onVillageSelect={setSelectedVillage} />
-              </div>
-              <div>
-                <RightSidebar selectedVillage={selectedVillage} />
-              </div>
+
+            {/* Actions & Alerts in flex layout */}
+            <div className="bg-card p-4 rounded-lg shadow">
+              <RightSidebar selectedVillage={selectedVillage} variant="flex" />
             </div>
           </TabsContent>
 
