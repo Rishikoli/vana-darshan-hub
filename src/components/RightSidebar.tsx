@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { recentActivities, environmentalAlerts } from "@/data/sampleData";
 
-const RightSidebar = () => {
+interface RightSidebarProps {
+  selectedVillage?: any;
+}
+
+const RightSidebar: React.FC<RightSidebarProps> = ({ selectedVillage }) => {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'upload': return <Upload className="w-4 h-4" />;
@@ -99,7 +103,7 @@ const RightSidebar = () => {
         </CardContent>
       </Card>
 
-      {/* Village Info Placeholder */}
+      {/* Village Info */}
       <Card className="shadow-government">
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
@@ -108,9 +112,41 @@ const RightSidebar = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Click on a village marker to view details
-          </p>
+          {selectedVillage ? (
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-semibold">{selectedVillage.village_name}</h3>
+                <p className="text-sm text-muted-foreground">{selectedVillage.district}, {selectedVillage.state}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Population</p>
+                  <p className="font-semibold">{selectedVillage.population?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Forest Cover</p>
+                  <p className="font-semibold">{selectedVillage.forest_cover_percentage}%</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Claims</p>
+                  <p className="font-semibold">{selectedVillage.claims_count}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge variant="outline" className="text-xs">
+                    {selectedVillage.processing_stage?.replace('_', ' ')}
+                  </Badge>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="w-full">
+                View Full Details
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Click on a village marker to view details
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

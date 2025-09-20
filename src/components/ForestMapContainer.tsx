@@ -4,10 +4,15 @@ import { villageData } from '@/data/sampleData';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
-// Simple 3D-styled map component for demonstration
-const ForestMapContainer: React.FC = () => {
+interface ForestMapContainerProps {
+  onVillageSelect?: (village: any) => void;
+}
+
+// Enhanced 3D-styled map component with detailed interactions
+const ForestMapContainer: React.FC<ForestMapContainerProps> = ({ onVillageSelect }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const [selectedVillage, setSelectedVillage] = useState<any>(null);
+  const [mapStyle, setMapStyle] = useState<'satellite' | 'terrain' | 'forest'>('forest');
   const dispatch = useDispatch();
 
   // Calculate positions for villages on the map
@@ -30,11 +35,23 @@ const ForestMapContainer: React.FC = () => {
 
   const handleVillageClick = (village: any) => {
     setSelectedVillage(village);
+    onVillageSelect?.(village);
     dispatch({ type: 'SET_SELECTED_VILLAGE', payload: village });
   };
 
+  const getMapBackground = () => {
+    switch (mapStyle) {
+      case 'satellite':
+        return 'bg-gradient-to-br from-green-100 to-blue-100 dark:from-green-950 dark:to-blue-950';
+      case 'terrain':
+        return 'bg-gradient-to-br from-amber-50 to-green-100 dark:from-amber-950 dark:to-green-950';
+      default:
+        return 'bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900';
+    }
+  };
+
   return (
-    <div className="relative h-[600px] w-full rounded-lg overflow-hidden shadow-government bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+    <div className={`relative h-[600px] w-full rounded-lg overflow-hidden shadow-government ${getMapBackground()}`}>
       {/* Map Background */}
       <div className="absolute inset-0 opacity-20">
         <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -77,6 +94,32 @@ const ForestMapContainer: React.FC = () => {
 
       {/* Map Controls */}
       <div className="absolute top-4 right-4 space-y-2">
+        {/* Map Style Selector */}
+        <div className="bg-card rounded-lg p-3 shadow-lg">
+          <h3 className="text-sm font-medium mb-2">Map View</h3>
+          <div className="space-y-1">
+            <button
+              onClick={() => setMapStyle('forest')}
+              className={`w-full text-xs px-2 py-1 rounded text-left ${mapStyle === 'forest' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+            >
+              Forest View
+            </button>
+            <button
+              onClick={() => setMapStyle('satellite')}
+              className={`w-full text-xs px-2 py-1 rounded text-left ${mapStyle === 'satellite' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+            >
+              Satellite
+            </button>
+            <button
+              onClick={() => setMapStyle('terrain')}
+              className={`w-full text-xs px-2 py-1 rounded text-left ${mapStyle === 'terrain' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+            >
+              Terrain
+            </button>
+          </div>
+        </div>
+
+        {/* Forest Health Legend */}
         <div className="bg-card rounded-lg p-3 shadow-lg">
           <h3 className="text-sm font-medium mb-2">Forest Health Legend</h3>
             <div className="space-y-1">
@@ -93,6 +136,29 @@ const ForestMapContainer: React.FC = () => {
                 <span className="text-xs">Degraded (&lt;50%)</span>
               </div>
             </div>
+        </div>
+
+        {/* Statistics Panel */}
+        <div className="bg-card rounded-lg p-3 shadow-lg">
+          <h3 className="text-sm font-medium mb-2">Quick Stats</h3>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span>Total Villages:</span>
+              <span className="font-semibold">{villageData.features.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Avg Coverage:</span>
+              <span className="font-semibold">
+                {(villageData.features.reduce((acc, f) => acc + f.properties.forest_cover_percentage, 0) / villageData.features.length).toFixed(1)}%
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Total Population:</span>
+              <span className="font-semibold">
+                {villageData.features.reduce((acc, f) => acc + f.properties.population, 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
