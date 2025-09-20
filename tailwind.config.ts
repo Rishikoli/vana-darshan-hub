@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          hover: "hsl(var(--primary-hover))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -30,6 +31,19 @@ export default {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        forest: {
+          healthy: "hsl(var(--forest-healthy))",
+          moderate: "hsl(var(--forest-moderate))",
+          degraded: "hsl(var(--forest-degraded))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
