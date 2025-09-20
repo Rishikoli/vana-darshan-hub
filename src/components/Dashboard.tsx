@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import DashboardHeader from './DashboardHeader';
 import EnhancedStatsCards from './EnhancedStatsCards';
 import ForestMapContainer from './ForestMapContainer';
+import Forest3DMap from './Forest3DMap';
 import RightSidebar from './RightSidebar';
 import DetailedAnalytics from './DetailedAnalytics';
 import VillageDetailsPanel from './VillageDetailsPanel';
@@ -44,9 +45,41 @@ const Dashboard: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="mapping" className="space-y-6">
-            <div className="flex">
-              <div className="flex-1">
-                <ForestMapContainer onVillageSelect={setSelectedVillage} />
+            <div className="bg-card p-6 rounded-lg shadow">
+              <h2 className="text-2xl font-bold mb-4">3D Forest Coverage Visualization</h2>
+              <p className="text-muted-foreground mb-4">
+                Explore the forest coverage across India in 3D. Pan, zoom, and rotate to analyze forest density and distribution.
+              </p>
+              <div className="h-[600px] w-full rounded-md overflow-hidden border">
+                <Forest3DMap />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-card p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-4">Forest Coverage Statistics</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span>Total Forest Cover</span>
+                    <span className="font-medium">713,789 km²</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Tree Cover</span>
+                    <span className="font-medium">95,382 km²</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Total Green Cover</span>
+                    <span className="font-medium">809,171 km²</span>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-card p-6 rounded-lg shadow">
+                <h3 className="text-lg font-semibold mb-4">Map Controls</h3>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li>• <span className="font-medium">Left-click + drag</span> to rotate the view</li>
+                  <li>• <span className="font-medium">Right-click + drag</span> to pan</li>
+                  <li>• <span className="font-medium">Scroll</span> to zoom in/out</li>
+                  <li>• <span className="font-medium">Ctrl + drag</span> to tilt the view</li>
+                </ul>
               </div>
               <div className="w-80">
                 <RightSidebar selectedVillage={selectedVillage} />
