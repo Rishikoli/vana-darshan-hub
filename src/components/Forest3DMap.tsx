@@ -776,7 +776,22 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
   };
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: typeof height === 'number' ? `${height}px` : height, overflow: 'auto' }}>
+    <div className="vdh-map-wrap" style={{ position: 'relative', width: '100%', height: typeof height === 'number' ? `${height}px` : height, overflow: 'hidden' }}>
+      {/* Keep Leaflet controls inside the map box and away from the details panel */}
+      <style>{`
+        .vdh-map-wrap .leaflet-control-container .leaflet-top.leaflet-left {
+          margin-top: 12px;
+          margin-left: 12px;
+        }
+        .vdh-map-wrap .leaflet-control-container .leaflet-bottom.leaflet-right {
+          margin-right: ${detailsOpen ? 372 : 12}px; /* leave space for details panel when open */
+          margin-bottom: 12px;
+        }
+        .vdh-map-wrap .leaflet-control-container .leaflet-bottom.leaflet-left {
+          margin-left: 12px;
+          margin-bottom: 12px;
+        }
+      `}</style>
       <MapContainer {...mapProps}>
         <TileLayer url={tileUrl} />
         {(() => {
