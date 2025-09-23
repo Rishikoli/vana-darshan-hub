@@ -6,6 +6,7 @@ import type { Feature, Polygon, FeatureCollection } from 'geojson';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 // No external GIS deps to keep bundle light
 
 interface Forest3DMapProps {
@@ -697,6 +698,20 @@ const TRIBAL_REGIONS = {
 const INITIAL_CENTER: [number, number] = [22.0, 80.0]; // [lat, lng]
 const INITIAL_ZOOM = 4;
 
+const buttonStyle = {
+  padding: '6px 12px',
+  borderRadius: '6px',
+  background: '#1e293b',
+  border: '1px solid #334155',
+  color: '#e2e8f0',
+  cursor: 'pointer',
+  fontSize: '14px',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  transition: 'all 0.2s'
+};
+
 const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = false }) => {
   const [baseStyle, setBaseStyle] = useState<'forest' | 'satellite' | 'terrain'>('forest');
   const [selectedTribes, setSelectedTribes] = useState<string[]>([]);
@@ -705,6 +720,10 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
   const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
   const [selectedInfo, setSelectedInfo] = useState<any | null>(null);
+  const [mapStyle, setMapStyle] = useState<'forest' | 'satellite' | 'terrain'>('forest');
+  const [tribePage, setTribePage] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState<any | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const selectedLayerRef = useRef<any | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -718,6 +737,49 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
       list.add(t);
     }
     return Array.from(list).sort();
+  }, []);
+
+  const healthOptions = [
+    { value: 'healthy', label: 'Healthy (>75%)' },
+    { value: 'moderate', label: 'Moderate (50-75%)' },
+    { value: 'degraded', label: 'Degraded (<50%)' }
+  ];
+
+  const toggleTribe = (tribe: string) => {
+    setSelectedTribes(prev => 
+      prev.includes(tribe) 
+        ? prev.filter(t => t !== tribe)
+        : [...prev, tribe]
+    );
+  };
+
+  const toggleHealth = (health: string) => {
+    setSelectedHealths(prev => 
+      prev.includes(health)
+        ? prev.filter(h => h !== health)
+        : [...prev, health]
+    );
+  };
+
+  const toggleAllTribes = () => {
+    setSelectedTribes(prev => prev.length === tribes.length ? [] : [...tribes]);
+  };
+
+  const toggleAllHealths = () => {
+    setSelectedHealths(prev => 
+      prev.length === healthOptions.length 
+        ? [] 
+        : healthOptions.map(h => h.value)
+    );
+  };
+
+  const healthCounts = useMemo(() => {
+    const counts = { healthy: 0, moderate: 0, degraded: 0 };
+    (TRIBAL_REGIONS.features as any[]).forEach(f => {
+      const health = (f.properties?.Health?.overall_status || '').toLowerCase();
+      if (health in counts) counts[health]++;
+    });
+    return counts;
   }, []);
 
   // Filtered features for stats and legend
@@ -734,7 +796,7 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
   const clippedFeatures = filteredFeatures as any[];
 
   // Compute health counts for legend (based on filtered set)
-  const healthCounts = (() => {
+  const filteredHealthCounts = useMemo(() => {
     const counts = { healthy: 0, moderate: 0, degraded: 0 } as Record<string, number>;
     for (const f of filteredFeatures as any[]) {
       const p: any = f.properties || {};
@@ -742,7 +804,7 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
       if (counts[h] !== undefined) counts[h]++;
     }
     return counts;
-  })();
+  }, [filteredFeatures]);
 
   // Aggregate totals (based on filtered set)
   const aggregateTotals = (filteredFeatures as any[]).reduce(
@@ -758,9 +820,9 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
   );
 
   // Basemap URLs for Leaflet
-  const tileUrl = baseStyle === 'forest'
+  const tileUrl = mapStyle === 'forest'
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : baseStyle === 'satellite'
+    : mapStyle === 'satellite'
       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
       : 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
 
@@ -776,23 +838,89 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
   };
 
   return (
-    <div className="vdh-map-wrap" style={{ position: 'relative', width: '100%', height: typeof height === 'number' ? `${height}px` : height, overflow: 'hidden' }}>
+    <>
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center', 
+        width: '100%',
+        maxWidth: '1400px',
+        margin: '0 auto',
+        padding: '20px',
+        gap: '16px' 
+      }}>
+        {/* Controls Bar */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          width: '100%',
+          maxWidth: '1200px',
+          background: '#0f172a',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          border: '1px solid #334155',
+          boxSizing: 'border-box'
+        }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => setMenuOpen(true)}
+              style={buttonStyle}
+            >
+              Controls
+            </button>
+            <button 
+              onClick={() => setTribePage(!tribePage)}
+              style={{ ...buttonStyle, background: tribePage ? '#3b82f6' : undefined }}
+            >
+              {tribePage ? 'On' : 'Off'} Tribe Page
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {['forest', 'satellite', 'terrain'].map(style => (
+              <button
+                key={style}
+                onClick={() => setMapStyle(style as any)}
+                style={{
+                  ...buttonStyle,
+                  background: mapStyle === style ? '#3b82f6' : undefined,
+                  textTransform: 'capitalize'
+                }}
+              >
+                {style}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="vdh-map-wrap" style={{ 
+          position: 'relative', 
+          width: '100%',
+          maxWidth: '1200px',
+          height: typeof height === 'number' ? `${height}px` : height, 
+          overflow: 'hidden',
+          margin: '0 auto',
+          borderRadius: '8px',
+          border: '1px solid #334155',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          zIndex: 1
+        }}>
       {/* Keep Leaflet controls inside the map box and away from the details panel */}
       <style>{`
+        .vdh-map-wrap .leaflet-control-container { position: absolute; z-index: 1000; pointer-events: auto; }
         .vdh-map-wrap .leaflet-control-container .leaflet-top.leaflet-left {
           margin-top: 12px;
           margin-left: 12px;
         }
-        .vdh-map-wrap .leaflet-control-container .leaflet-bottom.leaflet-right {
-          margin-right: ${detailsOpen ? 372 : 12}px; /* leave space for details panel when open */
-          margin-bottom: 12px;
-        }
+        .vdh-map-wrap .leaflet-control-container .leaflet-bottom.leaflet-right { margin-right: 12px; margin-bottom: 12px; }
         .vdh-map-wrap .leaflet-control-container .leaflet-bottom.leaflet-left {
           margin-left: 12px;
           margin-bottom: 12px;
         }
       `}</style>
-      <MapContainer {...mapProps}>
+      <MapContainer 
+        {...mapProps}
+        style={{ ...mapProps.style, position: 'relative', zIndex: 1 }}
+      >
         <TileLayer url={tileUrl} />
         {(() => {
           // Base styles per health
@@ -847,6 +975,8 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
                   selectedLayerRef.current = layer;
                   layer.setStyle(selectedStyle);
                   setSelectedInfo(feature.properties);
+                  setSelectedFeature(feature);
+                  setIsDetailOpen(true);
                   setDetailsOpen(true);
                 }
               });
@@ -855,69 +985,8 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
           return <GeoJSON {...geojsonProps} />;
         })()}
       </MapContainer>
-      {/* Inline Details Panel (scoped to map container) */}
-      {detailsOpen && (
-        <div
-          role="dialog"
-          aria-label="Tribal Details"
-          aria-modal="false"
-          style={{
-            position: 'absolute',
-            top: 0,
-            right: 0,
-            height: '100%',
-            width: 360,
-            maxWidth: '85vw',
-            background: 'rgba(17,24,39,0.98)',
-            color: '#e5e7eb',
-            borderLeft: '1px solid #334155',
-            zIndex: 60,
-            padding: 16,
-            overflowY: 'auto',
-            boxShadow: '-4px 0 12px rgba(0,0,0,0.4)'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: 16 }}>Tribal Details</div>
-            <button
-              onClick={() => { setDetailsOpen(false); setSelectedInfo(null); }}
-              style={{ background: 'transparent', color: '#cbd5e1', border: '1px solid #334155', borderRadius: 6, padding: '4px 8px', cursor: 'pointer' }}
-            >
-              Close
-            </button>
-          </div>
-          {selectedInfo ? (
-            <div style={{ fontSize: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
-                {selectedInfo.name ?? `${selectedInfo.district ?? 'District'}, ${selectedInfo.state ?? ''}`}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 6 }}>
-                <span style={{ color: '#94a3b8' }}>State</span>
-                <span>{selectedInfo.state ?? '—'}</span>
-                <span style={{ color: '#94a3b8' }}>District</span>
-                <span>{selectedInfo.district ?? '—'}</span>
-                <span style={{ color: '#94a3b8' }}>Dominant Tribe</span>
-                <span>{selectedInfo.tribe ?? selectedInfo.dominant_tribe ?? '—'}</span>
-                <span style={{ color: '#94a3b8' }}>Forest Cover</span>
-                <span>{(selectedInfo.forest_cover ?? selectedInfo.ForestCover_km2 ?? 'N/A').toString()} km²</span>
-                <span style={{ color: '#94a3b8' }}>Tree Cover</span>
-                <span>{(selectedInfo.tree_cover ?? selectedInfo.TreeCover_km2 ?? 'N/A').toString()} km²</span>
-                <span style={{ color: '#94a3b8' }}>Health</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{
-                    display: 'inline-block', width: 10, height: 10, borderRadius: 3,
-                    background: (() => { const h = (selectedInfo.health ?? selectedInfo.Health?.overall_status ?? 'unknown').toString().toLowerCase(); return h==='healthy'?'#22c55e':h==='moderate'?'#facc15':'#ef4444'; })()
-                  }} />
-                  {(selectedInfo.health ?? selectedInfo.Health?.overall_status ?? 'Unknown').toString()}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 12, color: '#cbd5e1' }}>Tap a tribal region to view population and forest details.</div>
-          )}
-        </div>
-      )}
       {/* Controls Sheet via shadcn/ui */}
+        {/* Filter Controls Panel */}
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
           <SheetTrigger asChild>
             <button
@@ -931,7 +1000,7 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
               style={{
                 position: 'absolute',
                 top: 12,
-                left: 12,
+                right: 12,
                 zIndex: 1100,
                 width: 40,
                 height: 36,
@@ -953,192 +1022,519 @@ const Forest3DMap: React.FC<Forest3DMapProps> = ({ height = 600, interactive = f
               </span>
             </button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[320px]">
-            <SheetHeader>
-              <SheetTitle>Controls</SheetTitle>
-            </SheetHeader>
-            {/* Navigate to Tribe page toggle */}
-            <div style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', padding: 8, borderRadius: 6, marginBottom: 8 }}>
-              <div id="tribe-toggle-label" style={{ fontWeight: 700, marginBottom: 6 }}>Tribe Page</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: '#cbd5e1' }}>Go to Tribe</span>
-                <Switch
-                  checked={isOnTribePage}
-                  onCheckedChange={(val) => {
-                    if (val && !isOnTribePage) navigate('/tribe');
-                    if (!val && isOnTribePage) navigate('/');
-                  }}
-                  aria-labelledby="tribe-toggle-label"
-                />
-                <span style={{ fontSize: 12, color: '#cbd5e1', minWidth: 28 }}>{isOnTribePage ? 'On' : 'Off'}</span>
+          <SheetContent side="right" className="w-[380px] bg-slate-900 text-slate-100 p-0 overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900 z-10 p-4 border-b border-slate-800">
+              <SheetHeader>
+                <SheetTitle className="text-slate-100 text-xl">Map Controls</SheetTitle>
+              </SheetHeader>
+              
+              {/* Map Style Toggle */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-slate-300">Map Style</span>
+                  <div className="flex gap-1 bg-slate-800 p-1 rounded-lg">
+                    {['forest', 'satellite', 'terrain'].map((style) => (
+                      <button
+                        key={style}
+                        onClick={() => setMapStyle(style as any)}
+                        className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                          mapStyle === style 
+                            ? 'bg-blue-600 text-white' 
+                            : 'text-slate-300 hover:bg-slate-700'
+                        }`}
+                        style={{ textTransform: 'capitalize' }}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-            <div style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', padding: 8, borderRadius: 6, marginBottom: 8 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Map View</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setBaseStyle('forest')} style={{ padding: '4px 8px', borderRadius: 4, background: baseStyle==='forest'?'#10b981':'transparent', color: baseStyle==='forest'?'#000':'#fff', border: '1px solid #10b981' }}>Forest</button>
-                <button onClick={() => setBaseStyle('satellite')} style={{ padding: '4px 8px', borderRadius: 4, background: baseStyle==='satellite'?'#10b981':'transparent', color: baseStyle==='satellite'?'#000':'#fff', border: '1px solid #10b981' }}>Satellite</button>
-                <button onClick={() => setBaseStyle('terrain')} style={{ padding: '4px 8px', borderRadius: 4, background: baseStyle==='terrain'?'#10b981':'transparent', color: baseStyle==='terrain'?'#000':'#fff', border: '1px solid #10b981' }}>Terrain</button>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', padding: 8, borderRadius: 6, marginBottom: 8 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Tribe Filter</div>
-              {/* Quick Select Buttons */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {['Gond', 'Bhil', 'Scheduled Tribes', 'Multiple'].map((t) => {
-                  const active = selectedTribes.includes(t);
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => {
-                        setSelectedTribes((prev) =>
-                          active ? prev.filter((x) => x !== t) : Array.from(new Set([...prev, t]))
-                        );
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: 16,
-                        border: `1px solid ${active ? '#10b981' : '#334155'}`,
-                        background: active ? '#10b981' : '#0f172a',
-                        color: active ? '#000' : '#fff',
-                        fontSize: 12
-                      }}
+            
+            <div className="p-4 space-y-6">
+              {/* Tribe Filter Section */}
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-slate-200">Tribe Filter</h3>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setSelectedTribes([])}
+                      className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition-colors"
                     >
-                      {t}
+                      Clear
                     </button>
-                  );
-                })}
+                    <button 
+                      onClick={toggleAllTribes}
+                      className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                    >
+                      {selectedTribes.length === tribes.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Tribe Search */}
+                <div className="relative mb-3">
+                  <input
+                    type="text"
+                    placeholder="Search tribes..."
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-sm text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) => {
+                      // Implement search functionality if needed
+                    }}
+                  />
+                  <svg
+                    className="absolute right-3 top-2.5 h-4 w-4 text-slate-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                
+                {/* Tribe List */}
+                <div className="max-h-48 overflow-y-auto pr-2 -mr-2">
+                  <div className="space-y-2">
+                    {tribes.map(tribe => {
+                      const count = filteredFeatures.filter(f => {
+                        const p = f.properties || {};
+                        const t = (p.tribe ?? p.dominant_tribe ?? '').toString();
+                        return t.toLowerCase() === tribe.toLowerCase();
+                      }).length;
+                      
+                      return (
+                        <div key={tribe} className="flex items-center justify-between group">
+                          <div className="flex items-center flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              id={`tribe-${tribe}`}
+                              checked={selectedTribes.includes(tribe)}
+                              onChange={() => toggleTribe(tribe)}
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 flex-shrink-0"
+                            />
+                            <label 
+                              htmlFor={`tribe-${tribe}`} 
+                              className="ml-2 text-sm text-slate-200 truncate"
+                              title={tribe}
+                            >
+                              {tribe}
+                            </label>
+                          </div>
+                          {count > 0 && (
+                            <span className="ml-2 text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                              {count}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <button
-                  onClick={() => setSelectedTribes([])}
-                  style={{ padding: '4px 8px', borderRadius: 4, background: '#0f172a', color: '#fff', border: '1px solid #334155' }}
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={() => setSelectedTribes(tribes)}
-                  style={{ padding: '4px 8px', borderRadius: 4, background: '#10b981', color: '#000', border: '1px solid #10b981' }}
-                >
-                  Select All
-                </button>
+
+              {/* Health Filter Section */}
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="font-medium text-slate-200">Health Status</h3>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setSelectedHealths([])}
+                      className="text-xs px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50 transition-colors"
+                    >
+                      Clear
+                    </button>
+                    <button 
+                      onClick={toggleAllHealths}
+                      className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                    >
+                      {selectedHealths.length === healthOptions.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  {healthOptions.map(option => {
+                    const count = filteredHealthCounts[option.value] || 0;
+                    const isActive = selectedHealths.includes(option.value);
+                    const colorMap: Record<string, string> = {
+                      healthy: 'bg-green-500',
+                      moderate: 'bg-yellow-500',
+                      degraded: 'bg-red-500'
+                    };
+                    
+                    return (
+                      <div 
+                        key={option.value}
+                        className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                          isActive ? 'bg-slate-700/50' : 'hover:bg-slate-700/30'
+                        }`}
+                        onClick={() => toggleHealth(option.value)}
+                      >
+                        <div className="flex items-center">
+                          <div className={`w-3 h-3 rounded-full ${colorMap[option.value] || 'bg-slate-500'} mr-2`}></div>
+                          <span className="text-sm text-slate-200">{option.label}</span>
+                        </div>
+                        <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                          {count}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div style={{ maxHeight: 140, overflowY: 'auto', border: '1px solid #334155', borderRadius: 6, padding: 8 }}>
-                {tribes.map((t) => {
-                  const checked = selectedTribes.includes(t);
-                  return (
-                    <div key={t} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 12 }}>{t}</span>
-                      <Switch
-                        checked={checked}
-                        onCheckedChange={(val) => {
-                          if (val) setSelectedTribes((prev) => Array.from(new Set([...prev, t])));
-                          else setSelectedTribes((prev) => prev.filter((x) => x !== t));
-                        }}
-                        aria-label={`Toggle ${t}`}
-                      />
+
+              {/* Summary Card */}
+              <div className="bg-slate-800/50 p-4 rounded-lg">
+                <h3 className="font-medium text-slate-200 mb-3">Summary</h3>
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-slate-900/50 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-400">
+                      {filteredFeatures.length}
                     </div>
-                  );
-                })}
+                    <div className="text-xs text-slate-400 mt-1">Regions</div>
+                  </div>
+                  
+                  <div className="bg-slate-900/50 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-green-400">
+                      {healthCounts.healthy || 0}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Healthy</div>
+                  </div>
+                  
+                  <div className="bg-slate-900/50 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-400">
+                      {healthCounts.moderate || 0}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Moderate</div>
+                  </div>
+                  
+                  <div className="bg-slate-900/50 p-3 rounded-lg">
+                    <div className="text-2xl font-bold text-red-400">
+                      {healthCounts.degraded || 0}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">Degraded</div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between py-1 border-b border-slate-700">
+                    <span className="text-slate-400">Total Forest Cover</span>
+                    <span className="font-medium text-slate-200">
+                      {aggregateTotals.forest.toLocaleString()} km²
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-700">
+                    <span className="text-slate-400">Total Tree Cover</span>
+                    <span className="font-medium text-slate-200">
+                      {aggregateTotals.tree.toLocaleString()} km²
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-400">Combined Cover</span>
+                    <span className="font-medium text-slate-200">
+                      {aggregateTotals.total.toLocaleString()} km²
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div style={{ marginTop: 8, fontSize: 12, color: '#cbd5e1' }}>
-                <div>Regions: {filteredFeatures.length}</div>
-                <div>Forest Cover: {aggregateTotals.forest.toLocaleString()} km²</div>
-                <div>Tree Cover: {aggregateTotals.tree.toLocaleString()} km²</div>
-              </div>
+              
+              {/* Selected Tribes */}
+              {selectedTribes.length > 0 && (
+                <div className="bg-slate-800/50 p-4 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium text-slate-300">Selected Tribes</h4>
+                    <span className="text-xs text-slate-400">{selectedTribes.length} selected</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTribes.map(tribe => (
+                      <span 
+                        key={tribe}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-100 border border-blue-800"
+                      >
+                        {tribe}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTribe(tribe);
+                          }}
+                          className="ml-1.5 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-blue-800/50"
+                        >
+                          <svg className="w-2 h-2" fill="currentColor" viewBox="0 0 8 8">
+                            <path fillRule="evenodd" d="M4 3.293l2.146-2.147a.5.5 0 01.708.708L4.707 4l2.147 2.146a.5.5 0 01-.708.708L4 4.707l-2.146 2.147a.5.5 0 01-.708-.708L3.293 4 1.146 1.854a.5.5 0 01.708-.708L4 3.293z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            {/* Health Filter */}
-            <div style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', padding: 8, borderRadius: 6, marginBottom: 8 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Health Filter</div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Healthy', value: 'healthy', color: '#22c55e' },
-                  { label: 'Moderate', value: 'moderate', color: '#facc15' },
-                  { label: 'Degraded', value: 'degraded', color: '#ef4444' },
-                ].map(({ label, value, color }) => {
-                  const active = selectedHealths.includes(value);
-                  return (
-                    <button
-                      key={value}
-                      onClick={() => {
-                        setSelectedHealths((prev) =>
-                          active ? prev.filter((x) => x !== value) : Array.from(new Set([...prev, value]))
-                        );
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: 16,
-                        border: `1px solid ${active ? color : '#334155'}`,
-                        background: active ? color : '#0f172a',
-                        color: active ? '#000' : '#fff',
-                        fontSize: 12
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+            
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-slate-900 border-t border-slate-800 p-3 text-center">
+              <div className="text-xs text-slate-400">
+                Showing {filteredFeatures.length} of {(TRIBAL_REGIONS.features as any[]).length} regions
               </div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                <button
-                  onClick={() => setSelectedHealths([])}
-                  style={{ padding: '4px 8px', borderRadius: 4, background: '#0f172a', color: '#fff', border: '1px solid #334155' }}
-                >
-                  Clear
-                </button>
-                <button
-                  onClick={() => setSelectedHealths(['healthy','moderate','degraded'])}
-                  style={{ padding: '4px 8px', borderRadius: 4, background: '#10b981', color: '#000', border: '1px solid #10b981' }}
-                >
-                  Select All
-                </button>
-              </div>
-              <div style={{ fontSize: 12, color: '#cbd5e1' }}>
-                <div>Active: {selectedHealths.length ? selectedHealths.join(', ') : 'All'}</div>
-              </div>
-            </div>
-            <div style={{ background: 'rgba(0,0,0,0.7)', color: '#fff', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Forest Health Legend</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ display: 'inline-block', width: 12, height: 12, background: '#22c55e', borderRadius: 2 }}></span>
-                <span>Healthy (&gt;75%) — {healthCounts.healthy}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ display: 'inline-block', width: 12, height: 12, background: '#facc15', borderRadius: 2 }}></span>
-                <span>Moderate (50-75%) — {healthCounts.moderate}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ display: 'inline-block', width: 12, height: 12, background: '#ef4444', borderRadius: 2 }}></span>
-                <span>Degraded (&lt;50%) — {healthCounts.degraded}</span>
-              </div>
-              {/* Compact summary to ensure visibility */}
-              <div style={{ height: 1, background: '#334155', margin: '8px 0' }} />
-              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>Selected Tribes</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {selectedTribes.length === 0 ? (
-                  <span style={{ fontSize: 12, color: '#cbd5e1' }}>All</span>
-                ) : (
-                  selectedTribes.slice(0, 4).map((t) => (
-                    <span key={t} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 12, background: '#0f172a', border: '1px solid #334155' }}>{t}</span>
-                  ))
-                )}
-                {selectedTribes.length > 4 && (
-                  <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 12, background: '#0f172a', border: '1px solid #334155' }}>+{selectedTribes.length - 4} more</span>
-                )}
-              </div>
-              <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 12 }}>Aggregated Totals</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: 6, fontSize: 12, color: '#cbd5e1' }}>
-                <span>Regions:</span>
-                <span>{filteredFeatures.length}</span>
-                <span>Forest Cover:</span>
-                <span>{aggregateTotals.forest.toLocaleString()} km²</span>
-                <span>Tree Cover:</span>
-                <span>{aggregateTotals.tree.toLocaleString()} km²</span>
-              </div>
+              <button 
+                onClick={() => setMenuOpen(false)}
+                className="mt-2 w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
+              >
+                Apply Filters
+              </button>
             </div>
           </SheetContent>
         </Sheet>
-    </div>
+        </div>
+
+        {/* Details section below the map */}
+        <div style={{
+          width: '100%',
+          maxWidth: '1200px',
+          margin: '20px auto 0',
+          position: 'relative',
+          zIndex: 0 // Lower than map
+        }}>
+      <div style={{
+        border: '1px solid #334155',
+        background: 'rgba(11, 18, 32, 0.95)',
+        borderRadius: 8,
+        padding: 20,
+        color: '#e5e7eb',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        pointerEvents: 'auto',
+        backdropFilter: 'blur(4px)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>Tribal Details</div>
+          {selectedInfo && (
+            <button 
+              onClick={() => { setDetailsOpen(false); setSelectedInfo(null); }}
+              style={{ 
+                background: 'transparent', 
+                color: '#cbd5e1', 
+                border: '1px solid #334155', 
+                borderRadius: 6, 
+                padding: '4px 8px', 
+                cursor: 'pointer',
+                position: 'absolute',
+                top: 12,
+                right: 12,
+                zIndex: 1001
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        {selectedInfo ? (
+          <div style={{ fontSize: 12 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>
+              {selectedInfo.name ?? `${selectedInfo.district ?? 'District'}, ${selectedInfo.state ?? ''}`}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 6 }}>
+              <span style={{ color: '#94a3b8' }}>State</span>
+              <span>{selectedInfo.state ?? '—'}</span>
+              <span style={{ color: '#94a3b8' }}>District</span>
+              <span>{selectedInfo.district ?? '—'}</span>
+              <span style={{ color: '#94a3b8' }}>Dominant Tribe</span>
+              <span>{selectedInfo.tribe ?? selectedInfo.dominant_tribe ?? '—'}</span>
+              <span style={{ color: '#94a3b8' }}>Forest Cover</span>
+              <span>{(selectedInfo.forest_cover ?? selectedInfo.ForestCover_km2 ?? 'N/A').toString()} km²</span>
+              <span style={{ color: '#94a3b8' }}>Tree Cover</span>
+              <span>{(selectedInfo.tree_cover ?? selectedInfo.TreeCover_km2 ?? 'N/A').toString()} km²</span>
+              <span style={{ color: '#94a3b8' }}>Health</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  display: 'inline-block', width: 10, height: 10, borderRadius: 3,
+                  background: (() => { const h = (selectedInfo.health ?? selectedInfo.Health?.overall_status ?? 'unknown').toString().toLowerCase(); return h==='healthy'?'#22c55e':h==='moderate'?'#facc15':'#ef4444'; })()
+                }} />
+                {(selectedInfo.health ?? selectedInfo.Health?.overall_status ?? 'Unknown').toString()}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#cbd5e1' }}>Click a district/region on the map to view details here.</div>
+        )}
+      </div>
+        </div>
+      </div>
+
+      {/* Tribal Region Details Dialog */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="max-w-2xl bg-slate-900 border-slate-700 text-slate-100">
+          {selectedFeature?.properties && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-slate-100">
+                  {selectedFeature.properties.district || 'Tribal Region'}
+                </DialogTitle>
+                <div className="text-sm text-slate-400">
+                  {selectedFeature.properties.state || ''}
+                </div>
+              </DialogHeader>
+              
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  {/* Basic Info */}
+                  <div className="bg-slate-800/50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-slate-200 mb-3">Region Information</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between py-1.5 border-b border-slate-700">
+                        <span className="text-slate-400">Dominant Tribe</span>
+                        <span className="font-medium text-slate-200">
+                          {selectedFeature.properties.dominant_tribe || 'N/A'}
+                        </span>
+                      </div>
+                      {selectedFeature.properties.other_tribes?.length > 0 && (
+                        <div className="flex justify-between py-1.5 border-b border-slate-700">
+                          <span className="text-slate-400">Other Tribes</span>
+                          <span className="font-medium text-slate-200 text-right">
+                            {selectedFeature.properties.other_tribes.join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between py-1.5 border-b border-slate-700">
+                        <span className="text-slate-400">Total Population</span>
+                        <span className="font-medium text-slate-200">
+                          {selectedFeature.properties.population_total_2011?.toLocaleString() || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-700">
+                        <span className="text-slate-400">ST Population</span>
+                        <span className="font-medium text-slate-200">
+                          {selectedFeature.properties.population_st_2011?.toLocaleString() || 'N/A'}
+                          {selectedFeature.properties.percentage_st_2011 && (
+                            <span className="text-slate-400 ml-1">
+                              ({selectedFeature.properties.percentage_st_2011}%)
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      {selectedFeature.properties.pvgt_present?.length > 0 && (
+                        <div className="flex justify-between py-1.5">
+                          <span className="text-slate-400">PVTG Communities</span>
+                          <span className="font-medium text-slate-200">
+                            {selectedFeature.properties.pvgt_present.join(', ')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Forest Cover */}
+                  <div className="bg-slate-800/50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-slate-200 mb-3">Forest Cover</h3>
+                    <div className="space-y-3">
+                      <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-slate-400">Forest Cover</span>
+                              <span className="font-medium text-slate-200">
+                                {selectedFeature.properties.ForestCover_km2?.toLocaleString() || 'N/A'} km²
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-700 rounded-full h-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full" 
+                                style={{ width: `${Math.min(100, (selectedFeature.properties.ForestCover_km2 || 0) / 1000)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-slate-400">Tree Cover</span>
+                              <span className="font-medium text-slate-200">
+                                {selectedFeature.properties.TreeCover_km2?.toLocaleString() || 'N/A'} km²
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-700 rounded-full h-2">
+                              <div 
+                                className="bg-green-400 h-2 rounded-full" 
+                                style={{ width: `${Math.min(100, (selectedFeature.properties.TreeCover_km2 || 0) / 500)}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-4">
+                  {/* Health Status */}
+                  <div className="bg-slate-800/50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-slate-200 mb-3">Health Status</h3>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className={`w-4 h-4 rounded-full ${
+                        selectedFeature.properties.Health?.overall_status === 'healthy' ? 'bg-green-500' :
+                        selectedFeature.properties.Health?.overall_status === 'moderate' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}></div>
+                      <span className="text-lg font-medium capitalize">
+                        {selectedFeature.properties.Health?.overall_status || 'Unknown'}
+                      </span>
+                    </div>
+                    
+                    {selectedFeature.properties.Health?.key_issues?.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-slate-300">Key Issues</h4>
+                        <ul className="list-disc list-inside space-y-1 text-sm text-slate-300">
+                          {selectedFeature.properties.Health.key_issues.map((issue: string, i: number) => (
+                            <li key={i} className="ml-2">{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {selectedFeature.properties.Health?.infant_mortality_rate_estimate && (
+                      <div className="mt-3 text-sm">
+                        <span className="text-slate-400">Infant Mortality: </span>
+                        <span className="font-medium text-slate-200">
+                          {selectedFeature.properties.Health.infant_mortality_rate_estimate}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Additional Info */}
+                  <div className="bg-slate-800/50 p-4 rounded-lg">
+                    <h3 className="text-lg font-semibold text-slate-200 mb-3">Additional Information</h3>
+                    
+                    {selectedFeature.properties.key_forest_type && (
+                      <div className="mb-3">
+                        <h4 className="text-sm font-medium text-slate-300 mb-1">Forest Type</h4>
+                        <p className="text-sm text-slate-300">{selectedFeature.properties.key_forest_type}</p>
+                      </div>
+                    )}
+                    
+                    {selectedFeature.properties.major_rivers_and_waterbodies?.length > 0 && (
+                      <div className="mb-3">
+                        <h4 className="text-sm font-medium text-slate-300 mb-1">Major Water Bodies</h4>
+                        <p className="text-sm text-slate-300">
+                          {selectedFeature.properties.major_rivers_and_waterbodies.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {selectedFeature.properties.implementation_challenge && (
+                      <div>
+                        <h4 className="text-sm font-medium text-slate-300 mb-1">Implementation Challenges</h4>
+                        <p className="text-sm text-slate-300">{selectedFeature.properties.implementation_challenge}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
