@@ -8,6 +8,8 @@ import { store } from "./store/store";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
+import Tribe from "./pages/Tribe";
+import AssetsPage from "./pages/Assets";
 
 const queryClient = new QueryClient();
 
@@ -20,6 +22,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/tribe" element={<Tribe />} />
+            <Route path="/assets" element={<AssetsPage />} />
             <Route path="/dashboard" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
