@@ -41,7 +41,7 @@ const Dashboard: React.FC = () => {
                 Explore the forest coverage across India in 3D. Pan, zoom, and rotate to analyze forest density and distribution.
               </p>
               <div className="h-[600px] w-full rounded-md overflow-hidden border">
-                <Forest3DMap />
+                <Forest3DMap interactive={true} />
               </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
