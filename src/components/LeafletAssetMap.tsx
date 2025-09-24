@@ -50,10 +50,16 @@ const LeafletAssetMap: React.FC = () => {
         <ScaleControl position="bottomleft" />
         <LayersControl position="topright">
           <BaseLayer checked name="Stadia Dark">
-            <TileLayer url="https://tiles.stadiamaps.com/styles/alidade_smooth_dark/{z}/{x}/{y}.png" attribution="© Stadia Maps" />
+            <TileLayer 
+              url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key=d9f8ca1e-c458-4b61-b119-fe219406ec61" 
+              attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' 
+            />
           </BaseLayer>
           <BaseLayer name="Outdoors">
-            <TileLayer url="https://tiles.stadiamaps.com/styles/outdoors/{z}/{x}/{y}.png" attribution="© Stadia Maps" />
+            <TileLayer 
+              url="https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png?api_key=d9f8ca1e-c458-4b61-b119-fe219406ec61" 
+              attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' 
+            />
           </BaseLayer>
 
           {layers.map(({ key, fc }) => (
