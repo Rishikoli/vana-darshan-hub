@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, GeoJSON, ScaleControl } from 'react-leaflet';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { MapContainer, TileLayer, GeoJSON, ScaleControl, useMap } from 'react-leaflet';
 import type { LatLngBoundsLiteral, Layer } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -106,29 +106,78 @@ const LeafletAssetMap: React.FC = () => {
             }))
           };
           
+          // Helper function to create a popup for a feature
+          const createPopup = (feature: any) => {
+            const props = feature?.properties || {};
+            const label = props.label || key;
+            const state = props.state || 'Unknown';
+            return `<div><strong>${label}</strong><div>State: ${state}</div></div>`;
+          };
+
           return (
-            <GeoJSON
-              key={key}
-              data={styledFC as any}
-              onEachFeature={onEachFeature}
-              style={(feature) => ({
-                color: layerColors[feature?.properties?.type as LayerKey] || '#3388ff',
-                weight: 1,
-                opacity: 0.6,
-                fillColor: layerColors[feature?.properties?.type as LayerKey] || '#3388ff',
-                fillOpacity: 0.35,
-              })}
-              pointToLayer={(feature, latlng) => {
-                const color = layerColors[feature?.properties?.type as LayerKey] || '#3388ff';
-                return L.circleMarker(latlng, {
-                  radius: 5,
-                  color,
+            <div key={key}>
+              <GeoJSON
+                key={key}
+                data={styledFC as any}
+                pathOptions={{
+                  color: layerColors[key as LayerKey] || '#3388ff',
                   weight: 1,
-                  fillColor: color,
-                  fillOpacity: 0.9
-                });
-              }}
-            />
+                  opacity: 0.6,
+                  fillColor: layerColors[key as LayerKey] || '#3388ff',
+                  fillOpacity: 0.35
+                }}
+                eventHandlers={{
+                  add: (e) => {
+                    const layer = e.target;
+                    layer.eachLayer((featureLayer: any) => {
+                      // Only apply styles to vector layers that support setStyle
+                      if (featureLayer.setStyle) {
+                        // Set initial style
+                        featureLayer.setStyle({
+                          color: layerColors[key as LayerKey] || '#3388ff',
+                          weight: 1,
+                          opacity: 0.6,
+                          fillColor: layerColors[key as LayerKey] || '#3388ff',
+                          fillOpacity: 0.35
+                        });
+
+                        // Add hover effects
+                        featureLayer.on({
+                          mouseover: (e: L.LeafletMouseEvent) => {
+                            const l = e.target;
+                            if (l.setStyle) {
+                              l.setStyle({
+                                weight: 2,
+                                opacity: 1,
+                                fillOpacity: 0.7
+                              });
+                            }
+                          },
+                          mouseout: (e: L.LeafletMouseEvent) => {
+                            const l = e.target;
+                            if (l.setStyle) {
+                              l.setStyle({
+                                weight: 1,
+                                opacity: 0.6,
+                                fillOpacity: 0.35
+                              });
+                            }
+                          }
+                        });
+                      }
+
+                      // Add popup if the layer has a feature
+                      if (featureLayer.feature) {
+                        featureLayer.bindPopup(createPopup(featureLayer.feature));
+                      } else if (featureLayer.getLatLng) {
+                        // For point layers that don't have a feature
+                        featureLayer.bindPopup(`<div>${key}</div>`);
+                      }
+                    });
+                  }
+                }}
+              />
+            </div>
           );
         })}
       </MapContainer>
